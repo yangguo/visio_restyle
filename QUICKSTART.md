@@ -1,0 +1,188 @@
+# Quick Reference Guide
+
+## Installation
+```bash
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+```
+
+## Commands
+
+### Full Conversion (One Command)
+```bash
+python -m visio_restyle.main convert INPUT.vsdx -t TEMPLATE.vsdx -o OUTPUT.vsdx
+```
+
+### Step-by-Step
+
+#### 1. Extract Source Diagram
+```bash
+python -m visio_restyle.main extract INPUT.vsdx -o diagram.json
+```
+
+#### 2. Extract Template Masters
+```bash
+python -m visio_restyle.main extract-masters TEMPLATE.vsdx -o masters.json
+```
+
+#### 3. Generate Mapping
+```bash
+python -m visio_restyle.main map diagram.json masters.json -o mapping.json
+```
+
+#### 4. Rebuild Diagram
+```bash
+python -m visio_restyle.main rebuild INPUT.vsdx TEMPLATE.vsdx mapping.json -o OUTPUT.vsdx
+```
+
+## Options
+
+### Convert Command
+- `-t, --template`: Target template file (required)
+- `-o, --output`: Output file (required)
+- `-m, --model`: LLM model (default: gpt-4)
+- `--save-intermediate`: Save intermediate JSON files
+
+### Map Command
+- `-m, --model`: LLM model to use
+  - `gpt-4` (default, most accurate)
+  - `gpt-4-turbo` (faster)
+  - `gpt-3.5-turbo` (fastest, less accurate)
+
+## Environment Variables
+
+**LLM Config supports URL, Model Name, and API Settings:**
+
+Create a `.env` file:
+```bash
+# Required
+OPENAI_API_KEY=sk-your-key-here
+
+# Model Configuration
+LLM_MODEL=gpt-4
+
+# Optional API Settings
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_API_VERSION=2023-05-15
+OPENAI_ORG_ID=your_org_id_here
+OPENAI_TIMEOUT=60
+OPENAI_MAX_RETRIES=3
+```
+
+**Configuration Examples:**
+
+Standard OpenAI:
+```bash
+OPENAI_API_KEY=sk-...
+LLM_MODEL=gpt-4
+```
+
+Azure OpenAI:
+```bash
+OPENAI_API_KEY=your_azure_key
+OPENAI_API_BASE=https://your-resource.openai.azure.com/
+OPENAI_API_VERSION=2023-05-15
+LLM_MODEL=your-deployment-name
+```
+
+OpenAI-Compatible (LocalAI, Ollama):
+```bash
+OPENAI_API_KEY=not-needed
+OPENAI_API_BASE=http://localhost:8080/v1
+LLM_MODEL=mistral
+```
+
+## File Formats
+
+### Diagram JSON
+```json
+{
+  "filename": "diagram.vsdx",
+  "pages": [{
+    "name": "Page-1",
+    "shapes": [{
+      "id": "1",
+      "text": "Shape text",
+      "master_name": "Process",
+      "position": {"x": 4.25, "y": 8.5},
+      "size": {"width": 1.5, "height": 0.75}
+    }],
+    "connectors": [{
+      "id": "2",
+      "from_shape": "1",
+      "to_shape": "3"
+    }]
+  }]
+}
+```
+
+### Masters JSON
+```json
+{
+  "masters": [
+    {"name": "ModernProcess", "id": "1", "description": "..."}
+  ]
+}
+```
+
+### Mapping JSON
+```json
+{
+  "1": "ModernProcess",
+  "3": "ModernDecision"
+}
+```
+
+## Common Workflows
+
+### Convert Single File
+```bash
+python -m visio_restyle.main convert input.vsdx -t template.vsdx -o output.vsdx
+```
+
+### Convert with Custom Mapping
+```bash
+# Extract and generate initial mapping
+python -m visio_restyle.main extract input.vsdx -o diagram.json
+python -m visio_restyle.main extract-masters template.vsdx -o masters.json
+python -m visio_restyle.main map diagram.json masters.json -o mapping.json
+
+# Edit mapping.json manually
+
+# Rebuild with custom mapping
+python -m visio_restyle.main rebuild input.vsdx template.vsdx mapping.json -o output.vsdx
+```
+
+### Batch Convert
+```bash
+for file in *.vsdx; do
+  python -m visio_restyle.main convert "$file" -t template.vsdx -o "new_${file}"
+done
+```
+
+## Testing
+```bash
+pytest tests/ -v
+```
+
+## Troubleshooting
+
+**Problem**: ModuleNotFoundError
+- **Solution**: `pip install -r requirements.txt`
+
+**Problem**: API Key Error
+- **Solution**: Set `OPENAI_API_KEY` in `.env` or environment
+
+**Problem**: Master not found
+- **Solution**: Check available masters: `python -m visio_restyle.main extract-masters template.vsdx -o masters.json`
+
+**Problem**: Incorrect mappings
+- **Solution**: Use step-by-step workflow and manually edit `mapping.json`
+
+## Help
+```bash
+python -m visio_restyle.main --help
+python -m visio_restyle.main convert --help
+python -m visio_restyle.main extract --help
+```
