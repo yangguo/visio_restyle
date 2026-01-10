@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 import tempfile
 import re
+import io
 
 # Namespaces
 NS = {
@@ -12,8 +13,77 @@ NS = {
     'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
     'ct': 'http://schemas.openxmlformats.org/package/2006/content-types'
 }
-for prefix, uri in NS.items():
-    ET.register_namespace(prefix, uri)
+# Package relationships namespace (different from r namespace)
+PKG_REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships'
+
+# Register default namespace for Visio (no prefix)
+ET.register_namespace('', NS['v'])
+ET.register_namespace('r', NS['r'])
+ET.register_namespace('ct', NS['ct'])
+
+
+def _write_xml_with_namespaces(tree: ET.ElementTree, path: Path, default_ns: str = None) -> None:
+    """Write XML file ensuring proper namespace declarations are preserved."""
+    output = io.BytesIO()
+    tree.write(output, encoding="utf-8", xml_declaration=True)
+    xml_content = output.getvalue().decode("utf-8")
+    
+    # Ensure the r namespace is declared on the root element if not present
+    r_ns = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+    
+    # Find the root element and add xmlns:r if needed
+    root_match = re.match(r'(<\?xml[^>]+\?>\s*<[\w:]+)([^>]*)(>)', xml_content, re.DOTALL)
+    if root_match:
+        root_start = root_match.group(1)
+        root_attrs = root_match.group(2)
+        root_end = root_match.group(3)
+        
+        # Add xmlns:r if not present
+        if 'xmlns:r=' not in root_attrs:
+            xml_content = root_start + root_attrs + ' ' + r_ns + root_end + xml_content[root_match.end():]
+    
+    path.write_text(xml_content, encoding="utf-8")
+
+
+def _write_relationships_xml(rel_root: ET.Element, path: Path) -> None:
+    """Write a relationships XML file with proper namespace handling."""
+    output = io.BytesIO()
+    tree = ET.ElementTree(rel_root)
+    tree.write(output, encoding="UTF-8", xml_declaration=True)
+    xml_content = output.getvalue().decode("utf-8")
+    
+    # Replace ns0: prefix with nothing (use default namespace)
+    xml_content = xml_content.replace('ns0:', '')
+    xml_content = xml_content.replace(':ns0', '')
+    xml_content = xml_content.replace('xmlns:ns0=', 'xmlns=')
+    
+    # Also handle r: prefix for relationships namespace if incorrectly used
+    xml_content = re.sub(r'<r:Relationship', '<Relationship', xml_content)
+    xml_content = re.sub(r'</r:Relationship', '</Relationship', xml_content)
+    xml_content = re.sub(r'<r:Relationships', '<Relationships', xml_content)
+    xml_content = re.sub(r'</r:Relationships', '</Relationships', xml_content)
+    
+    path.write_text(xml_content, encoding="utf-8")
+
+
+def _write_content_types_xml(ct_root: ET.Element, path: Path) -> None:
+    """Write [Content_Types].xml file with proper namespace handling."""
+    output = io.BytesIO()
+    tree = ET.ElementTree(ct_root)
+    tree.write(output, encoding="UTF-8", xml_declaration=True)
+    xml_content = output.getvalue().decode("utf-8")
+    
+    # Replace ct: prefix with nothing (use default namespace)
+    xml_content = xml_content.replace('ct:', '')
+    xml_content = xml_content.replace(':ct', '')
+    xml_content = xml_content.replace('xmlns:ct=', 'xmlns=')
+    
+    # Also handle ns0: prefix
+    xml_content = xml_content.replace('ns0:', '')
+    xml_content = xml_content.replace(':ns0', '')
+    xml_content = xml_content.replace('xmlns:ns0=', 'xmlns=')
+    
+    path.write_text(xml_content, encoding="utf-8")
 
 class MasterInjector:
     def __init__(self, source_path, template_path):
@@ -73,7 +143,8 @@ class MasterInjector:
                 rels_tree = ET.parse(rels_path)
                 rels_root = rels_tree.getroot()
             else:
-                rels_root = ET.Element(f"{{{NS['r']}}}Relationships")
+                # Use package relationships namespace, not office document relationships
+                rels_root = ET.Element("Relationships", {"xmlns": PKG_REL_NS})
                 rels_tree = ET.ElementTree(rels_root)
                 rels_path.parent.mkdir(parents=True, exist_ok=True)
                 
@@ -130,10 +201,10 @@ class MasterInjector:
                     
                     root.append(t_master)
                     
-                    # Add to .rels
-                    new_rel = ET.SubElement(rels_root, f"{{{NS['r']}}}Relationship")
+                    # Add to .rels - use Relationship without namespace prefix
+                    new_rel = ET.SubElement(rels_root, "Relationship")
                     new_rel.set('Id', new_rel_id)
-                    new_rel.set('Type', "http://schemas.microsoft.com/office/visio/2012/relationships/master")
+                    new_rel.set('Type', "http://schemas.microsoft.com/visio/2010/relationships/master")
                     new_rel.set('Target', new_file_name)
                     
                     # Add to [Content_Types].xml
@@ -152,9 +223,9 @@ class MasterInjector:
                     print(f"Warning: Master file {src_file} not found")
 
             # Save XMLs
-            tree.write(masters_xml_path, encoding='utf-8', xml_declaration=True)
-            rels_tree.write(rels_path, encoding='utf-8', xml_declaration=True)
-            ct_tree.write(ct_path, encoding='utf-8', xml_declaration=True)
+            _write_xml_with_namespaces(tree, masters_xml_path)
+            _write_relationships_xml(rels_root, rels_path)
+            _write_content_types_xml(ct_root, ct_path)
             
             # Zip output
             shutil.make_archive(str(Path(output_path).with_suffix('')), 'zip', self.output_dir)

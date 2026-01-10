@@ -3,6 +3,8 @@ Extract Visio diagram information to JSON format.
 """
 
 import json
+import zipfile
+import xml.etree.ElementTree as ET
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from vsdx import VisioFile
@@ -19,6 +21,25 @@ class VisioExtractor:
         """
         self.visio_path = Path(visio_path)
         self.visio_file = None
+        self._master_name_by_id = self._load_master_name_map()
+
+    def _load_master_name_map(self) -> Dict[str, str]:
+        master_map = {}
+        try:
+            with zipfile.ZipFile(self.visio_path, 'r') as z:
+                if 'visio/masters/masters.xml' not in z.namelist():
+                    return master_map
+                xml_content = z.read('visio/masters/masters.xml')
+            root = ET.fromstring(xml_content)
+            ns = {'v': 'http://schemas.microsoft.com/office/visio/2012/main'}
+            for master in root.findall('.//v:Master', ns):
+                master_id = master.get('ID')
+                name = master.get('NameU') or master.get('Name')
+                if master_id and name:
+                    master_map[master_id] = name
+        except Exception:
+            return master_map
+        return master_map
     
     def extract(self) -> Dict[str, Any]:
         """Extract the complete diagram structure.
@@ -135,7 +156,12 @@ class VisioExtractor:
         """
         try:
             if hasattr(shape, 'master_shape') and shape.master_shape:
-                return shape.master_shape.Name if hasattr(shape.master_shape, 'Name') else None
+                name = shape.master_shape.Name if hasattr(shape.master_shape, 'Name') else None
+                if name:
+                    return name
+            master_id = self._get_master_id(shape)
+            if master_id:
+                return self._master_name_by_id.get(str(master_id))
             return None
         except:
             return None
@@ -150,6 +176,8 @@ class VisioExtractor:
             Master ID or None
         """
         try:
+            if hasattr(shape, 'xml') and shape.xml is not None:
+                return shape.xml.get('Master')
             if hasattr(shape, 'master_shape') and shape.master_shape:
                 return shape.master_shape.ID if hasattr(shape.master_shape, 'ID') else None
             return None

@@ -6,6 +6,11 @@ import os
 import tempfile
 from pathlib import Path
 import pytest
+import zipfile
+
+from visio_restyle.auto_mapper import AutoMapper
+from visio_restyle.visio_extractor import VisioExtractor
+from visio_restyle.visio_rebuilder import VisioRebuilder
 
 # Test data
 SAMPLE_DIAGRAM_DATA = {
@@ -207,6 +212,48 @@ class TestDataValidation:
         assert "height" in size
         assert isinstance(size["width"], (int, float))
         assert isinstance(size["height"], (int, float))
+
+
+class TestConversionWorkflow:
+    """Integration-style test for conversion pipeline without LLM."""
+
+    def test_rebuild_output_contains_shapes(self, tmp_path):
+        output_path = tmp_path / "output.vsdx"
+
+        extractor = VisioExtractor("input.vsdx")
+        diagram_data = extractor.extract()
+        template_masters = VisioExtractor.get_masters_from_visio("template.vsdx")
+
+        mapping = AutoMapper().create_mapping(diagram_data, template_masters)
+        assert mapping, "Expected non-empty mapping from auto mapper"
+
+        rebuilder = VisioRebuilder(
+            source_path="input.vsdx",
+            target_template_path="template.vsdx",
+            mapping=mapping,
+        )
+        rebuilder.rebuild(str(output_path))
+
+        with zipfile.ZipFile(output_path, "r") as z:
+            page_xml = z.read("visio/pages/page1.xml").decode("utf-8")
+            masters_xml = z.read("visio/masters/masters.xml").decode("utf-8")
+            rels_xml = z.read("visio/pages/_rels/page1.xml.rels").decode("utf-8")
+
+        assert "<PageContents" in page_xml
+        assert "<Shape" in page_xml
+
+        # Ensure output contains expected template masters.
+        assert "Process" in masters_xml
+        assert "Decision" in masters_xml
+
+        # Style overrides from template should be applied to shapes.
+        assert "FillBkgnd" in page_xml or "LineColor" in page_xml
+
+        # Page relationships should include injected masters.
+        assert "master14.xml" in rels_xml
+        assert "master17.xml" in rels_xml
+        assert "master18.xml" in rels_xml
+        assert "master19.xml" in rels_xml
 
 
 if __name__ == "__main__":

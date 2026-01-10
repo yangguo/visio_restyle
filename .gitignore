@@ -49,3 +49,9 @@ output/
 *.vsdx
 *.jpg
 
+tmp_output/
+tmp_input/
+
+*.png
+*.svg
+*.xml

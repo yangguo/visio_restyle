@@ -3,6 +3,7 @@ Main CLI application for Visio diagram restyling.
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -11,7 +12,19 @@ from dotenv import load_dotenv
 
 from .visio_extractor import VisioExtractor
 from .llm_mapper import LLMMapper
+from .auto_mapper import AutoMapper
 from .visio_rebuilder import VisioRebuilder
+
+
+def _select_mapper(model: str):
+    model_value = (model or "").strip().lower()
+    if model_value in {"auto", "none", "offline"}:
+        return AutoMapper(), "auto"
+
+    if not os.environ.get("OPENAI_API_KEY"):
+        return AutoMapper(), "auto"
+
+    return LLMMapper(model=model), "llm"
 
 
 def extract_command(args):
@@ -39,7 +52,7 @@ def extract_masters_command(args):
 
 def map_command(args):
     """Handle the map subcommand."""
-    print(f"Creating shape mapping using LLM...")
+    print("Creating shape mapping...")
     
     # Load diagram data
     with open(args.diagram, 'r', encoding='utf-8') as f:
@@ -51,13 +64,16 @@ def map_command(args):
         target_masters = masters_data.get("masters", [])
     
     # Create mapper
-    mapper = LLMMapper(model=args.model)
+    mapper, mapper_type = _select_mapper(args.model)
+    if mapper_type == "auto":
+        print("Using heuristic mapping (no LLM).")
     
     # Generate mapping
     mapping = mapper.create_mapping(diagram_data, target_masters)
     
     # Save mapping
-    mapper.save_mapping(mapping, args.output)
+    with open(args.output, 'w', encoding='utf-8') as f:
+        json.dump(mapping, f, indent=2, ensure_ascii=False)
     
     print(f"Mapping created with {len(mapping)} shape mappings")
     print(f"Mapping saved to: {args.output}")
@@ -99,9 +115,11 @@ def convert_command(args):
     target_masters = VisioExtractor.get_masters_from_visio(args.template)
     print(f"      Found {len(target_masters)} available masters")
     
-    # Step 3: Create mapping with LLM
-    print("[3/4] Generating shape mappings with LLM...")
-    mapper = LLMMapper(model=args.model)
+    # Step 3: Create mapping with LLM or heuristics
+    print("[3/4] Generating shape mappings...")
+    mapper, mapper_type = _select_mapper(args.model)
+    if mapper_type == "auto":
+        print("      Using heuristic mapping (no LLM).")
     mapping = mapper.create_mapping(diagram_data, target_masters)
     print(f"      Created {len(mapping)} shape mappings")
     
@@ -120,7 +138,8 @@ def convert_command(args):
         with open(masters_path, 'w', encoding='utf-8') as f:
             json.dump({"masters": target_masters}, f, indent=2, ensure_ascii=False)
         
-        mapper.save_mapping(mapping, str(mapping_path))
+        with open(mapping_path, 'w', encoding='utf-8') as f:
+            json.dump(mapping, f, indent=2, ensure_ascii=False)
         
         print(f"      Intermediate files saved to: {intermediate_dir}")
     
@@ -188,7 +207,12 @@ Examples:
     map_parser.add_argument('diagram', help='Extracted diagram JSON file')
     map_parser.add_argument('masters', help='Target masters JSON file')
     map_parser.add_argument('-o', '--output', required=True, help='Output mapping JSON file')
-    map_parser.add_argument('-m', '--model', default=None, help='LLM model to use (default: env LLM_MODEL or gpt-4)')
+    map_parser.add_argument(
+        '-m',
+        '--model',
+        default=None,
+        help='LLM model to use (default: env LLM_MODEL or gpt-4, use \"auto\" for heuristics)'
+    )
     map_parser.set_defaults(func=map_command)
     
     # Rebuild command
@@ -210,7 +234,12 @@ Examples:
     convert_parser.add_argument('input', help='Source .vsdx file')
     convert_parser.add_argument('-t', '--template', required=True, help='Target template .vsdx file')
     convert_parser.add_argument('-o', '--output', required=True, help='Output .vsdx file')
-    convert_parser.add_argument('-m', '--model', default=None, help='LLM model to use (default: env LLM_MODEL or gpt-4)')
+    convert_parser.add_argument(
+        '-m',
+        '--model',
+        default=None,
+        help='LLM model to use (default: env LLM_MODEL or gpt-4, use \"auto\" for heuristics)'
+    )
     convert_parser.add_argument(
         '--save-intermediate',
         action='store_true',
