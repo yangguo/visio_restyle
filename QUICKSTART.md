@@ -52,25 +52,45 @@ python -m visio_restyle.main rebuild INPUT.vsdx TEMPLATE.vsdx mapping.json -o OU
 
 ## Environment Variables
 
+**LLM Config supports URL, Model Name, and API Settings:**
+
 Create a `.env` file:
 ```bash
 # Required
 OPENAI_API_KEY=sk-your-key-here
 
-# Optional
+# Model Configuration
 LLM_MODEL=gpt-4
-OPENAI_ORG_ID=your_org_id_here
+
+# Optional API Settings
 OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_API_VERSION=2023-05-15
+OPENAI_ORG_ID=your_org_id_here
 OPENAI_TIMEOUT=60
 OPENAI_MAX_RETRIES=3
 ```
 
-For Azure OpenAI:
+**Configuration Examples:**
+
+Standard OpenAI:
+```bash
+OPENAI_API_KEY=sk-...
+LLM_MODEL=gpt-4
+```
+
+Azure OpenAI:
 ```bash
 OPENAI_API_KEY=your_azure_key
 OPENAI_API_BASE=https://your-resource.openai.azure.com/
 OPENAI_API_VERSION=2023-05-15
 LLM_MODEL=your-deployment-name
+```
+
+OpenAI-Compatible (LocalAI, Ollama):
+```bash
+OPENAI_API_KEY=not-needed
+OPENAI_API_BASE=http://localhost:8080/v1
+LLM_MODEL=mistral
 ```
 
 ## File Formats

@@ -129,29 +129,57 @@ visio-restyle rebuild diagram.vsdx new_style.vsdx mapping.json -o result.vsdx
 
 ### Environment Variables
 
+The application is configured through environment variables in a `.env` file. All LLM settings support:
+- **URL**: Custom API endpoint via `OPENAI_API_BASE`
+- **Model Name**: Model selection via `LLM_MODEL`
+- **API Settings**: Full OpenAI client configuration
+
 Create a `.env` file in the project root:
 
 ```bash
 # Required: OpenAI API Key
 OPENAI_API_KEY=your_api_key_here
 
-# Optional: Default LLM Model
+# Model Configuration (defaults to gpt-4 if not set)
 LLM_MODEL=gpt-4
 
-# Optional: OpenAI Organization ID
-# OPENAI_ORG_ID=your_org_id_here
-
-# Optional: Custom OpenAI API Base URL (for Azure OpenAI or compatible APIs)
+# Optional: Custom API Endpoint
 # OPENAI_API_BASE=https://api.openai.com/v1
 
-# Optional: OpenAI API Version (for Azure OpenAI)
+# Optional: API Version (required for Azure OpenAI)
 # OPENAI_API_VERSION=2023-05-15
+
+# Optional: Organization ID
+# OPENAI_ORG_ID=your_org_id_here
 
 # Optional: Request timeout in seconds
 # OPENAI_TIMEOUT=60
 
-# Optional: Max retries for API calls
+# Optional: Max retry attempts
 # OPENAI_MAX_RETRIES=3
+```
+
+### Configuration Examples
+
+**Standard OpenAI:**
+```bash
+OPENAI_API_KEY=sk-...
+LLM_MODEL=gpt-4
+```
+
+**Azure OpenAI:**
+```bash
+OPENAI_API_KEY=your_azure_key
+OPENAI_API_BASE=https://your-resource.openai.azure.com/
+OPENAI_API_VERSION=2023-05-15
+LLM_MODEL=your-deployment-name
+```
+
+**OpenAI-Compatible APIs (LocalAI, Ollama, etc.):**
+```bash
+OPENAI_API_KEY=not-needed
+OPENAI_API_BASE=http://localhost:8080/v1
+LLM_MODEL=mistral
 ```
 
 ### Supported LLM Models
@@ -159,17 +187,7 @@ LLM_MODEL=gpt-4
 - `gpt-4` (default, recommended)
 - `gpt-4-turbo`
 - `gpt-3.5-turbo` (faster but less accurate)
-
-### Using Azure OpenAI or Compatible APIs
-
-To use Azure OpenAI or other OpenAI-compatible APIs, configure the base URL:
-
-```bash
-OPENAI_API_KEY=your_azure_key
-OPENAI_API_BASE=https://your-resource.openai.azure.com/
-OPENAI_API_VERSION=2023-05-15
-LLM_MODEL=your-deployment-name
-```
+- Any model from Azure OpenAI or compatible APIs
 
 ## Project Structure
 

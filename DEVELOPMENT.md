@@ -207,14 +207,20 @@ pip install -r requirements.txt
 
 ### API Key Issues
 
+The LLM configuration supports URL, model name, and API settings through environment variables.
+
 Ensure your `.env` file has the required configuration:
 ```bash
 # Required
 OPENAI_API_KEY=sk-...
 
-# Optional settings
-OPENAI_ORG_ID=org-...
+# Model Configuration
+LLM_MODEL=gpt-4
+
+# Optional API Settings
 OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_API_VERSION=2023-05-15
+OPENAI_ORG_ID=org-...
 OPENAI_TIMEOUT=60
 OPENAI_MAX_RETRIES=3
 ```
@@ -222,14 +228,25 @@ OPENAI_MAX_RETRIES=3
 Or set environment variables:
 ```bash
 export OPENAI_API_KEY=sk-...
+export LLM_MODEL=gpt-4
 export OPENAI_API_BASE=https://api.openai.com/v1
 ```
 
-For Azure OpenAI:
+**Configuration Examples:**
+
+Azure OpenAI:
 ```bash
 OPENAI_API_KEY=your_azure_key
 OPENAI_API_BASE=https://your-resource.openai.azure.com/
 OPENAI_API_VERSION=2023-05-15
+LLM_MODEL=your-deployment-name
+```
+
+OpenAI-Compatible APIs:
+```bash
+OPENAI_API_KEY=not-needed
+OPENAI_API_BASE=http://localhost:8080/v1
+LLM_MODEL=mistral
 ```
 
 ### Visio File Compatibility

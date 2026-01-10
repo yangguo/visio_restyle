@@ -25,16 +25,19 @@ class MappingResponse(BaseModel):
 class LLMMapper:
     """Use LLM to map shapes from source diagram to target masters."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4"):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         """Initialize the LLM mapper.
         
         Args:
             api_key: OpenAI API key (if None, reads from OPENAI_API_KEY env var)
-            model: Model name to use (default: gpt-4)
+            model: Model name to use (if None, reads from LLM_MODEL env var, defaults to gpt-4)
         """
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OpenAI API key must be provided or set in OPENAI_API_KEY environment variable")
+        
+        # Set model: parameter > LLM_MODEL env var > default
+        self.model = model or os.environ.get("LLM_MODEL", "gpt-4")
         
         # Build OpenAI client configuration from environment variables
         client_kwargs = {"api_key": self.api_key}
@@ -46,6 +49,12 @@ class LLMMapper:
         # Optional: Custom base URL (for Azure OpenAI or compatible APIs)
         if os.environ.get("OPENAI_API_BASE"):
             client_kwargs["base_url"] = os.environ.get("OPENAI_API_BASE")
+        
+        # Optional: API Version (for Azure OpenAI)
+        if os.environ.get("OPENAI_API_VERSION"):
+            client_kwargs["default_headers"] = {
+                "api-version": os.environ.get("OPENAI_API_VERSION")
+            }
         
         # Optional: Timeout
         if os.environ.get("OPENAI_TIMEOUT"):
@@ -62,7 +71,7 @@ class LLMMapper:
                 pass  # Use default max_retries if invalid
         
         self.client = OpenAI(**client_kwargs)
-        self.model = model
+        print(f"LLM Mapper initialized with model: {self.model}, base_url: {client_kwargs.get('base_url', 'default')}")
     
     def create_mapping(
         self,
