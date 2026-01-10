@@ -116,10 +116,11 @@ class LLMMapper:
         shapes_info = []
         for page in diagram_data.get("pages", []):
             for shape in page.get("shapes", []):
-                if shape.get("master_name"):
+                # Include shape if it has master_name OR text, to catch shapes without masters
+                if shape.get("master_name") or shape.get("text"):
                     shapes_info.append({
                         "id": shape["id"],
-                        "master_name": shape["master_name"],
+                        "master_name": shape.get("master_name", "Unknown"),
                         "text": shape.get("text", "")[:100]  # Limit text length
                     })
         
@@ -206,19 +207,71 @@ If no good match exists, map to the closest generic shape available.
             Dictionary mapping shape IDs to new master names
         """
         try:
-            data = json.loads(response)
+            # Clean up response if it contains markdown code blocks
+            clean_response = response.strip()
+            if clean_response.startswith("```"):
+                # Remove first line (```json or ```)
+                clean_response = clean_response.split("\n", 1)[1]
+                # Remove last line (```)
+                if clean_response.endswith("```"):
+                    clean_response = clean_response.rsplit("\n", 1)[0]
             
+            # Attempt to repair truncated JSON
+            clean_response = clean_response.strip()
+            if not clean_response.endswith("]}"):
+                # Check if it ends with "]}" missing
+                if clean_response.endswith("]"):
+                     clean_response += "}"
+                elif clean_response.endswith("}") and not clean_response.endswith("]}"):
+                    pass # might be okay
+                else:
+                    # Crude repair: try to close the last object and array
+                    # This is best-effort. A better way is to ask LLM for less data or handle streaming.
+                    if clean_response.rfind("}") < clean_response.rfind("{"):
+                         clean_response += '"} ] }'
+                    elif clean_response.endswith(","):
+                         clean_response = clean_response[:-1] + " ] }"
+                    else:
+                         clean_response += " ] }"
+            
+            # Try parsing
+            try:
+                data = json.loads(clean_response)
+            except json.JSONDecodeError:
+                # If repair failed, try to parse what we have by aggressively cutting off the incomplete end
+                # Find the last valid "}," sequence
+                last_object_end = clean_response.rfind("},")
+                if last_object_end != -1:
+                    partial_json = clean_response[:last_object_end+1] + " ] }"
+                    try:
+                        data = json.loads(partial_json)
+                        print("Warning: Parsed partial JSON response (truncated).")
+                    except:
+                        raise 
+                else:
+                     raise
+
             # Validate and extract mappings
-            mapping_response = MappingResponse(**data)
+            # If "mappings" key is missing, look for list directly or "mappings" in data
+            mappings_list = data.get("mappings", [])
             
             # Convert to simple dict: shape_id -> new_master_name
             mapping = {}
-            for m in mapping_response.mappings:
-                mapping[m.old_shape_id] = m.new_master_name
+            for m_data in mappings_list:
+                # Handle both dict and object if pydantic model wasn't used strictly
+                if isinstance(m_data, dict):
+                    old_id = m_data.get("old_shape_id")
+                    new_master = m_data.get("new_master_name")
+                    if old_id and new_master:
+                        mapping[old_id] = new_master
+                elif hasattr(m_data, "old_shape_id"):
+                     mapping[m_data.old_shape_id] = m_data.new_master_name
             
             return mapping
         
         except json.JSONDecodeError as e:
+            # Try to partial parse or debug log
+            print(f"DEBUG: Failed JSON content (first 500 chars): {response[:500]}...")
             raise ValueError(f"Failed to parse LLM response as JSON: {e}")
         except Exception as e:
             raise ValueError(f"Failed to validate LLM response: {e}")

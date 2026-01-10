@@ -24,6 +24,7 @@ wheels/
 venv/
 ENV/
 env/
+.venv/
 
 # IDE
 .vscode/
@@ -44,3 +45,7 @@ config.local.yaml
 # Output files
 output/
 *.vsdx.bak
+
+*.vsdx
+*.jpg
+

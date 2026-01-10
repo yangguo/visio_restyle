@@ -55,7 +55,11 @@ class VisioExtractor:
         """
         shapes = []
         
-        for shape in page.shapes:
+        # Use child_shapes if available, otherwise shapes
+        # child_shapes usually contains top-level shapes
+        page_shapes = page.child_shapes if hasattr(page, 'child_shapes') else page.shapes
+        
+        for shape in page_shapes:
             # Skip connectors (they're handled separately)
             if self._is_connector(shape):
                 continue
@@ -84,7 +88,9 @@ class VisioExtractor:
         """
         connectors = []
         
-        for shape in page.shapes:
+        page_shapes = page.child_shapes if hasattr(page, 'child_shapes') else page.shapes
+        
+        for shape in page_shapes:
             if not self._is_connector(shape):
                 continue
             
@@ -255,20 +261,49 @@ class VisioExtractor:
         Returns:
             List of master dictionaries with name and description
         """
-        visio_file = VisioFile(str(visio_path))
         masters = []
         
         try:
-            # Get masters from the document
-            if hasattr(visio_file, 'masters'):
-                for master in visio_file.masters:
-                    master_info = {
-                        "name": master.Name if hasattr(master, 'Name') else str(master),
-                        "id": master.ID if hasattr(master, 'ID') else None,
-                        "description": master.UniqueID if hasattr(master, 'UniqueID') else ""
-                    }
-                    masters.append(master_info)
+            import zipfile
+            import xml.etree.ElementTree as ET
+            
+            with zipfile.ZipFile(visio_path, 'r') as z:
+                if 'visio/masters/masters.xml' in z.namelist():
+                    xml_content = z.read('visio/masters/masters.xml')
+                    root = ET.fromstring(xml_content)
+                    
+                    # Visio namespace
+                    ns = {'v': 'http://schemas.microsoft.com/office/visio/2012/main'}
+                    
+                    for master in root.findall('.//v:Master', ns):
+                        # Try NameU (Universal Name) first, then Name
+                        name = master.get('NameU') or master.get('Name')
+                        master_id = master.get('ID')
+                        unique_id = master.get('UniqueID', '')
+                        
+                        if name and master_id:
+                            masters.append({
+                                "name": name,
+                                "id": master_id,
+                                "description": unique_id
+                            })
+                            
         except Exception as e:
-            print(f"Warning: Could not extract masters: {e}")
+            print(f"Warning: Could not extract masters directly from XML: {e}")
+            
+        # Fallback to vsdx library if XML extraction failed or returned empty
+        if not masters:
+            try:
+                visio_file = VisioFile(str(visio_path))
+                if hasattr(visio_file, 'masters'):
+                    for master in visio_file.masters:
+                        master_info = {
+                            "name": master.Name if hasattr(master, 'Name') else str(master),
+                            "id": master.ID if hasattr(master, 'ID') else None,
+                            "description": master.UniqueID if hasattr(master, 'UniqueID') else ""
+                        }
+                        masters.append(master_info)
+            except Exception as e:
+                print(f"Warning: Could not extract masters via vsdx lib: {e}")
         
         return masters

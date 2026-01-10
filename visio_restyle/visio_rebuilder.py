@@ -36,62 +36,44 @@ class VisioRebuilder:
         Args:
             output_path: Path to save the rebuilt .vsdx file
         """
-        # Start with a copy of the source file
-        output_path = Path(output_path)
-        shutil.copy2(self.source_path, output_path)
+        # Inject masters from template into source, save to output_path
+        from .master_injector import MasterInjector
+        print(f"Injecting masters from {self.target_template_path}...")
+        injector = MasterInjector(self.source_path, self.target_template_path)
+        master_name_map = injector.inject(output_path)
+        print(f"Injected {len(master_name_map)} masters.")
         
-        # Open the files
-        self.source_file = VisioFile(str(self.source_path))
-        self.target_file = VisioFile(str(self.target_template_path))
+        # Open the output file (now containing merged masters)
         output_file = VisioFile(str(output_path))
         
-        # Get available masters from target template
-        target_masters = self._get_target_masters()
-        
         # Process each page
-        for page_idx, source_page in enumerate(self.source_file.pages):
-            if page_idx < len(output_file.pages):
-                output_page = output_file.pages[page_idx]
-                self._rebuild_page(source_page, output_page, target_masters)
+        for page in output_file.pages:
+            self._rebuild_page(page, master_name_map)
         
         # Save the modified file
-        output_file.save()
-        output_file.close()
-    
-    def _get_target_masters(self) -> Dict[str, Any]:
-        """Get available masters from target template.
-        
-        Returns:
-            Dictionary of master name to master object
-        """
-        masters = {}
-        try:
-            if hasattr(self.target_file, 'masters'):
-                for master in self.target_file.masters:
-                    name = master.Name if hasattr(master, 'Name') else str(master)
-                    masters[name] = master
-        except Exception as e:
-            print(f"Warning: Could not load target masters: {e}")
-        
-        return masters
+        output_file.save_vsdx(str(output_path))
+        output_file.close_vsdx()
     
     def _rebuild_page(
         self,
-        source_page,
-        output_page,
-        target_masters: Dict[str, Any]
+        page,
+        master_name_map: Dict[str, str]
     ) -> None:
         """Rebuild a single page.
         
         Args:
-            source_page: Source page object
-            output_page: Output page object to modify
-            target_masters: Available target masters
+            page: Output page object to modify
+            master_name_map: Map of master name to new master ID
         """
-        # Map shape IDs in source to shapes in output
-        shape_id_map = {}
-        
-        for shape in output_page.shapes:
+        # Iterate over shapes
+        # Note: We iterate over a copy of the list if we were modifying the list, 
+        # but here we modify shape properties.
+        if hasattr(page, 'child_shapes'):
+            shapes = page.child_shapes
+        else:
+            shapes = page.shapes
+
+        for shape in shapes:
             shape_id = shape.ID
             
             # Skip connectors for now
@@ -100,22 +82,53 @@ class VisioRebuilder:
             
             # Check if this shape should be remapped
             if shape_id in self.mapping:
-                new_master_name = self.mapping[shape_id]
+                target_master_name = self.mapping[shape_id]
                 
                 # Try to replace with new master
-                if new_master_name in target_masters:
-                    self._replace_shape_master(
-                        shape,
-                        target_masters[new_master_name],
-                        output_page
-                    )
+                if target_master_name in master_name_map:
+                    new_master_id = master_name_map[target_master_name]
+                    self._replace_shape_master_by_id(shape, new_master_id)
                 else:
-                    print(f"Warning: Master '{new_master_name}' not found in target template")
-            
-            shape_id_map[shape_id] = shape
+                    print(f"Warning: Master '{target_master_name}' not found in injected masters")
+
+    def _replace_shape_master_by_id(self, shape, new_master_id: str) -> None:
+        """Replace a shape's master by ID.
         
-        # Re-glue connectors
-        self._reglue_connectors(output_page, shape_id_map)
+        Args:
+            shape: Shape to modify
+            new_master_id: New master ID
+        """
+        try:
+            # Update XML directly
+            if hasattr(shape, 'xml'):
+                # 1. Set new Master ID
+                shape.xml.set('Master', str(new_master_id))
+                
+                # 2. Remove Type attribute (let Master decide)
+                if 'Type' in shape.xml.attrib:
+                    del shape.xml.attrib['Type']
+                
+                # 3. Remove local overrides to inherit Master style/geometry
+                # We want to remove: Geometry, Fill, Line, QuickStyle
+                # We want to KEEP: Text, Transform (PinX/Y), User (Container props), Property (Shape Data)
+                
+                sections_to_remove = ['Geometry', 'Fill', 'Line', 'QuickStyle', 'Image']
+                
+                to_remove = []
+                for child in shape.xml:
+                    # Check for Section elements
+                    # Tag will be {http://...}Section
+                    if 'Section' in child.tag:
+                        n_attr = child.get('N')
+                        if n_attr in sections_to_remove:
+                            to_remove.append(child)
+                
+                for child in to_remove:
+                    shape.xml.remove(child)
+                
+        except Exception as e:
+            print(f"Warning: Could not replace shape master: {e}")
+
     
     def _is_connector(self, shape) -> bool:
         """Check if a shape is a connector.

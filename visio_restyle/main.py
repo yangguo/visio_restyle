@@ -188,7 +188,7 @@ Examples:
     map_parser.add_argument('diagram', help='Extracted diagram JSON file')
     map_parser.add_argument('masters', help='Target masters JSON file')
     map_parser.add_argument('-o', '--output', required=True, help='Output mapping JSON file')
-    map_parser.add_argument('-m', '--model', default='gpt-4', help='LLM model to use (default: gpt-4)')
+    map_parser.add_argument('-m', '--model', default=None, help='LLM model to use (default: env LLM_MODEL or gpt-4)')
     map_parser.set_defaults(func=map_command)
     
     # Rebuild command
@@ -210,7 +210,7 @@ Examples:
     convert_parser.add_argument('input', help='Source .vsdx file')
     convert_parser.add_argument('-t', '--template', required=True, help='Target template .vsdx file')
     convert_parser.add_argument('-o', '--output', required=True, help='Output .vsdx file')
-    convert_parser.add_argument('-m', '--model', default='gpt-4', help='LLM model to use (default: gpt-4)')
+    convert_parser.add_argument('-m', '--model', default=None, help='LLM model to use (default: env LLM_MODEL or gpt-4)')
     convert_parser.add_argument(
         '--save-intermediate',
         action='store_true',
