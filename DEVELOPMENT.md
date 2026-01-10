@@ -207,14 +207,29 @@ pip install -r requirements.txt
 
 ### API Key Issues
 
-Ensure your `.env` file has:
-```
+Ensure your `.env` file has the required configuration:
+```bash
+# Required
 OPENAI_API_KEY=sk-...
+
+# Optional settings
+OPENAI_ORG_ID=org-...
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_TIMEOUT=60
+OPENAI_MAX_RETRIES=3
 ```
 
-Or set environment variable:
+Or set environment variables:
 ```bash
 export OPENAI_API_KEY=sk-...
+export OPENAI_API_BASE=https://api.openai.com/v1
+```
+
+For Azure OpenAI:
+```bash
+OPENAI_API_KEY=your_azure_key
+OPENAI_API_BASE=https://your-resource.openai.azure.com/
+OPENAI_API_VERSION=2023-05-15
 ```
 
 ### Visio File Compatibility

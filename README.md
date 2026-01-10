@@ -131,9 +131,27 @@ visio-restyle rebuild diagram.vsdx new_style.vsdx mapping.json -o result.vsdx
 
 Create a `.env` file in the project root:
 
-```
+```bash
+# Required: OpenAI API Key
 OPENAI_API_KEY=your_api_key_here
+
+# Optional: Default LLM Model
 LLM_MODEL=gpt-4
+
+# Optional: OpenAI Organization ID
+# OPENAI_ORG_ID=your_org_id_here
+
+# Optional: Custom OpenAI API Base URL (for Azure OpenAI or compatible APIs)
+# OPENAI_API_BASE=https://api.openai.com/v1
+
+# Optional: OpenAI API Version (for Azure OpenAI)
+# OPENAI_API_VERSION=2023-05-15
+
+# Optional: Request timeout in seconds
+# OPENAI_TIMEOUT=60
+
+# Optional: Max retries for API calls
+# OPENAI_MAX_RETRIES=3
 ```
 
 ### Supported LLM Models
@@ -141,6 +159,17 @@ LLM_MODEL=gpt-4
 - `gpt-4` (default, recommended)
 - `gpt-4-turbo`
 - `gpt-3.5-turbo` (faster but less accurate)
+
+### Using Azure OpenAI or Compatible APIs
+
+To use Azure OpenAI or other OpenAI-compatible APIs, configure the base URL:
+
+```bash
+OPENAI_API_KEY=your_azure_key
+OPENAI_API_BASE=https://your-resource.openai.azure.com/
+OPENAI_API_VERSION=2023-05-15
+LLM_MODEL=your-deployment-name
+```
 
 ## Project Structure
 

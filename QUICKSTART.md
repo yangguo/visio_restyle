@@ -53,9 +53,24 @@ python -m visio_restyle.main rebuild INPUT.vsdx TEMPLATE.vsdx mapping.json -o OU
 ## Environment Variables
 
 Create a `.env` file:
-```
+```bash
+# Required
 OPENAI_API_KEY=sk-your-key-here
+
+# Optional
 LLM_MODEL=gpt-4
+OPENAI_ORG_ID=your_org_id_here
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_TIMEOUT=60
+OPENAI_MAX_RETRIES=3
+```
+
+For Azure OpenAI:
+```bash
+OPENAI_API_KEY=your_azure_key
+OPENAI_API_BASE=https://your-resource.openai.azure.com/
+OPENAI_API_VERSION=2023-05-15
+LLM_MODEL=your-deployment-name
 ```
 
 ## File Formats

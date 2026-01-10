@@ -36,7 +36,32 @@ class LLMMapper:
         if not self.api_key:
             raise ValueError("OpenAI API key must be provided or set in OPENAI_API_KEY environment variable")
         
-        self.client = OpenAI(api_key=self.api_key)
+        # Build OpenAI client configuration from environment variables
+        client_kwargs = {"api_key": self.api_key}
+        
+        # Optional: Organization ID
+        if os.environ.get("OPENAI_ORG_ID"):
+            client_kwargs["organization"] = os.environ.get("OPENAI_ORG_ID")
+        
+        # Optional: Custom base URL (for Azure OpenAI or compatible APIs)
+        if os.environ.get("OPENAI_API_BASE"):
+            client_kwargs["base_url"] = os.environ.get("OPENAI_API_BASE")
+        
+        # Optional: Timeout
+        if os.environ.get("OPENAI_TIMEOUT"):
+            try:
+                client_kwargs["timeout"] = float(os.environ.get("OPENAI_TIMEOUT"))
+            except ValueError:
+                pass  # Use default timeout if invalid
+        
+        # Optional: Max retries
+        if os.environ.get("OPENAI_MAX_RETRIES"):
+            try:
+                client_kwargs["max_retries"] = int(os.environ.get("OPENAI_MAX_RETRIES"))
+            except ValueError:
+                pass  # Use default max_retries if invalid
+        
+        self.client = OpenAI(**client_kwargs)
         self.model = model
     
     def create_mapping(
