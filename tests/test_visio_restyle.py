@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 import pytest
 import zipfile
+import xml.etree.ElementTree as ET
 
 from visio_restyle.auto_mapper import AutoMapper
 from visio_restyle.visio_extractor import VisioExtractor
@@ -254,6 +255,67 @@ class TestConversionWorkflow:
         assert "master17.xml" in rels_xml
         assert "master18.xml" in rels_xml
         assert "master19.xml" in rels_xml
+
+        # Shapes should be scaled when template page is wider.
+        def max_pinx(xml_text):
+            root = ET.fromstring(xml_text)
+            max_val = 0.0
+            for shape in root.findall(".//{http://schemas.microsoft.com/office/visio/2012/main}Shape"):
+                for cell in shape.findall("{http://schemas.microsoft.com/office/visio/2012/main}Cell"):
+                    if cell.get("N") == "PinX":
+                        try:
+                            max_val = max(max_val, float(cell.get("V")))
+                        except (TypeError, ValueError):
+                            pass
+            return max_val
+
+        input_page = zipfile.ZipFile("input.vsdx").read("visio/pages/page1.xml").decode("utf-8")
+        output_max = max_pinx(page_xml)
+        input_max = max_pinx(input_page)
+        assert output_max > input_max
+
+        ns = {"v": "http://schemas.microsoft.com/office/visio/2012/main"}
+        masters_root = ET.fromstring(masters_xml)
+        master_name_by_id = {}
+        for master in masters_root.findall(".//v:Master", ns):
+            master_id = master.get("ID")
+            name = master.get("NameU") or master.get("Name")
+            if master_id and name:
+                master_name_by_id[master_id] = name
+
+        page_root = ET.fromstring(page_xml)
+        lane_shapes = []
+        container_shapes = []
+        for shape in page_root.findall(".//v:Shape", ns):
+            master_id = shape.get("Master")
+            if not master_id:
+                continue
+            name = master_name_by_id.get(master_id)
+            if name == "Swimlane (vertical)":
+                lane_shapes.append(shape)
+            elif name == "CFF Container":
+                container_shapes.append(shape)
+
+        assert container_shapes, "Expected a container shape mapped to CFF Container"
+        assert len(lane_shapes) >= 2, "Expected swimlane shapes to be mapped"
+
+        def get_user_cell(shape, row_name):
+            user_section = shape.find("v:Section[@N='User']", ns)
+            if user_section is None:
+                return None
+            row = user_section.find(f"v:Row[@N='{row_name}']", ns)
+            if row is None:
+                return None
+            cell = row.find("v:Cell[@N='Value']", ns)
+            return cell.get("V") if cell is not None else None
+
+        num_lanes = None
+        for shape in container_shapes:
+            num_lanes = get_user_cell(shape, "numLanes")
+            if num_lanes:
+                break
+        assert num_lanes is not None
+        assert int(float(num_lanes)) >= 2
 
 
 if __name__ == "__main__":

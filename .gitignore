@@ -51,6 +51,7 @@ output/
 
 tmp_output/
 tmp_input/
+intermediate/
 
 *.png
 *.svg
