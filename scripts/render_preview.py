@@ -141,11 +141,51 @@ class Canvas:
         ])
 
 
+def _load_master_dimensions(z):
+    """Load width/height from master shape definitions."""
+    master_dims = {}
+    try:
+        rels_xml = z.read("visio/masters/_rels/masters.xml.rels")
+        masters_xml = z.read("visio/masters/masters.xml")
+    except KeyError:
+        return master_dims
+    
+    rels_root = ET.fromstring(rels_xml)
+    rels_map = {rel.get("Id"): rel.get("Target") for rel in rels_root}
+    
+    masters_root = ET.fromstring(masters_xml)
+    r_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    
+    for master in masters_root.findall(".//v:Master", NS):
+        master_id = master.get("ID")
+        rel = master.find("v:Rel", NS)
+        if master_id is None or rel is None:
+            continue
+        rel_id = rel.get(f"{{{r_ns}}}id")
+        target = rels_map.get(rel_id)
+        if not target:
+            continue
+        try:
+            master_xml = z.read(f"visio/masters/{target}")
+            master_root = ET.fromstring(master_xml)
+            shape = master_root.find(".//v:Shape", NS)
+            if shape is not None:
+                cells = {c.get("N"): c.get("V") for c in shape.findall("v:Cell", NS)}
+                master_dims[master_id] = {
+                    "Width": _float(cells.get("Width")),
+                    "Height": _float(cells.get("Height")),
+                }
+        except (KeyError, ET.ParseError):
+            continue
+    return master_dims
+
+
 def render_preview(vsdx_path: Path, output_path: Path, scale: float = 40.0) -> None:
     with zipfile.ZipFile(vsdx_path, "r") as z:
         page_xml = z.read("visio/pages/page1.xml")
         pages_xml = z.read("visio/pages/pages.xml")
         masters_xml = z.read("visio/masters/masters.xml")
+        master_dims = _load_master_dimensions(z)
 
     page_root = ET.fromstring(page_xml)
     pages_root = ET.fromstring(pages_xml)
@@ -162,6 +202,14 @@ def render_preview(vsdx_path: Path, output_path: Path, scale: float = 40.0) -> N
         pin_y = _float(cells.get("PinY"))
         width = _float(cells.get("Width"))
         height = _float(cells.get("Height"))
+        
+        # Fall back to master dimensions if not specified on shape
+        master_id = shape.get("Master")
+        if master_id and master_id in master_dims:
+            if not width:
+                width = master_dims[master_id].get("Width", 0)
+            if not height:
+                height = master_dims[master_id].get("Height", 0)
 
         begin_x = _float(cells.get("BeginX"))
         begin_y = _float(cells.get("BeginY"))

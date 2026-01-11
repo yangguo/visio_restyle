@@ -12,6 +12,15 @@ def _normalize_text(text: str) -> str:
     return "".join(ch.lower() for ch in text.strip() if ch.isalnum())
 
 
+# Role labels that should be mapped to Process (not Swimlane)
+ROLE_LABELS = {"部门负责人", "分管领导"}
+ROLE_LABELS_NORMALIZED = {_normalize_text(label) for label in ROLE_LABELS}
+
+# Swimlane header labels - department/organization names
+SWIMLANE_HEADERS = {"经办人", "财务部", "法务部", "业务部", "管理层", "董事长", "需求部门", "采购部"}
+SWIMLANE_HEADERS_NORMALIZED = {_normalize_text(label) for label in SWIMLANE_HEADERS}
+
+
 class AutoMapper:
     """Map shapes to target masters using name-based heuristics."""
 
@@ -87,6 +96,13 @@ class AutoMapper:
                 if mapped:
                     mapping[shape_id] = mapped
                     return
+
+        # Role labels (部门负责人, 分管领导) should map to Process, not Swimlane
+        if text_norm in ROLE_LABELS_NORMALIZED:
+            mapped = self._match_targets(["process", "rounded rectangle"], target_by_norm)
+            if mapped:
+                mapping[shape_id] = mapped
+                return
 
         if not master_norm and shape_text:
             text_len = len(text_norm)

@@ -149,6 +149,14 @@ Please analyze each source shape and map it to the most appropriate target maste
 2. Text content and context
 3. Common diagram conventions
 
+MAPPING GUIDELINES:
+- Shapes with master "Rectangle" containing department names (财务部, 法务部, 业务部, 管理层, 董事长, 经办人) at the TOP of the diagram are swimlane HEADERS → map to "Swimlane (vertical)"
+- Shapes with NO master containing role labels (部门负责人, 分管领导) are workflow role annotations → map to "Process"
+- Shapes with master "Diamond" are decisions → map to "Decision"  
+- Shapes with master "Start/End" are terminators → map to "Start/End"
+- Shapes with master "Rectangle" containing action text (发起流程, 退回修改, etc.) are workflow steps → map to "Process"
+- Small label shapes with text like "通过", "未通过" are connector labels → map to "Dynamic connector"
+
 Respond with a JSON object in this exact format:
 {{
   "mappings": [

@@ -158,6 +158,44 @@ def convert_command(args):
     print("=" * 60)
 
 
+def llm_convert_command(args):
+    """Handle the llm-convert subcommand (LLM-centric workflow)."""
+    from .llm_converter import LLMConverter
+    
+    print("=" * 60)
+    print("VISIO RESTYLE - LLM-Centric Conversion")
+    print("=" * 60)
+    
+    converter = LLMConverter(model=args.model)
+    results = converter.convert(
+        source_path=args.input,
+        template_path=args.template,
+        output_path=args.output,
+    )
+    
+    # Save analysis results if requested
+    if args.save_analysis:
+        analysis_path = Path(args.output).with_suffix(".analysis.json")
+        with open(analysis_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+        print(f"✓ Analysis saved to: {analysis_path}")
+    
+    print("\n" + "=" * 60)
+    print("LLM Analysis Summary:")
+    if "input_analysis" in results:
+        ia = results["input_analysis"]
+        print(f"  Diagram Type: {ia.get('diagram_type', 'unknown')}")
+        print(f"  Swimlanes: {ia.get('swimlane_count', 0)}")
+        print(f"  Flow Steps: {ia.get('flow_step_count', 0)}")
+    if "template_analysis" in results:
+        ta = results["template_analysis"]
+        print(f"  Template Style: {ta.get('style_description', 'unknown')}")
+    if "transform_plan" in results:
+        tp = results["transform_plan"]
+        print(f"  Transforms Generated: {len(tp.get('shape_transforms', []))}")
+    print("=" * 60)
+
+
 def main():
     """Main entry point for the CLI."""
     # Load environment variables from .env file
@@ -246,6 +284,27 @@ Examples:
         help='Save intermediate JSON files (diagram, masters, mapping)'
     )
     convert_parser.set_defaults(func=convert_command)
+    
+    # LLM-centric convert command (maximizes LLM usage)
+    llm_convert_parser = subparsers.add_parser(
+        'llm-convert',
+        help='LLM-centric conversion (LLM analyzes input, template, and guides output)'
+    )
+    llm_convert_parser.add_argument('input', help='Source .vsdx file')
+    llm_convert_parser.add_argument('-t', '--template', required=True, help='Target template .vsdx file')
+    llm_convert_parser.add_argument('-o', '--output', required=True, help='Output .vsdx file')
+    llm_convert_parser.add_argument(
+        '-m',
+        '--model',
+        default=None,
+        help='LLM model to use (default: env LLM_MODEL or gpt-4)'
+    )
+    llm_convert_parser.add_argument(
+        '--save-analysis',
+        action='store_true',
+        help='Save LLM analysis results to JSON file'
+    )
+    llm_convert_parser.set_defaults(func=llm_convert_command)
     
     # Parse arguments
     args = parser.parse_args()

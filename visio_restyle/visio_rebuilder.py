@@ -114,6 +114,13 @@ STYLE_CELLS_TO_REMOVE = {
     "QuickStyleFontMatrix",
 }
 
+# Masters whose shapes should inherit dimensions from template (strip Width/Height)
+INHERIT_DIMENSIONS_MASTERS = {
+    "Process",
+    "Decision",
+    "Start/End",
+}
+
 STYLE_CELLS_TO_COPY = {
     "LineColor",
     "LineColorTrans",
@@ -378,7 +385,7 @@ class VisioRebuilder:
             try:
                 master_tree = ET.parse(master_file)
                 shape = master_tree.getroot().find(".//v:Shape", NS)
-                if shape:
+                if shape is not None:
                     width_cell = shape.find('v:Cell[@N="Width"]', NS)
                     height_cell = shape.find('v:Cell[@N="Height"]', NS)
                     dimensions[master_id] = {
@@ -502,11 +509,12 @@ class VisioRebuilder:
                     print(f"Warning: Master '{target_master}' not found in injected masters")
                     continue
 
-                # Preserve dimensions before changing master
-                self._preserve_shape_dimensions(shape, source_master_dims)
+                # Only preserve dimensions for shapes NOT in INHERIT_DIMENSIONS_MASTERS
+                if target_master not in INHERIT_DIMENSIONS_MASTERS:
+                    self._preserve_shape_dimensions(shape, source_master_dims)
                 
                 shape.set("Master", str(master_id))
-                self._strip_style_overrides(shape)
+                self._strip_style_overrides(shape, target_master)
                 self._apply_template_style(shape, target_master, template_styles)
 
             self._transfer_connector_labels(root)
@@ -1311,7 +1319,9 @@ class VisioRebuilder:
         normalized = _normalize_name(target_master)
         return master_lookup.get(normalized)
 
-    def _strip_style_overrides(self, shape: ET.Element) -> None:
+    def _strip_style_overrides(
+        self, shape: ET.Element, target_master: Optional[str] = None
+    ) -> None:
         for child in list(shape):
             if child.tag.endswith("Section"):
                 if child.get("N") in STYLE_SECTIONS_TO_REMOVE:
@@ -1320,6 +1330,13 @@ class VisioRebuilder:
         for cell in list(shape.findall("v:Cell", NS)):
             if cell.get("N") in STYLE_CELLS_TO_REMOVE:
                 shape.remove(cell)
+
+        # Strip dimension cells for shapes that should inherit from template master
+        if target_master in INHERIT_DIMENSIONS_MASTERS:
+            dimension_cells = {"Width", "Height", "LocPinX", "LocPinY"}
+            for cell in list(shape.findall("v:Cell", NS)):
+                if cell.get("N") in dimension_cells:
+                    shape.remove(cell)
 
     def _apply_template_style(
         self,

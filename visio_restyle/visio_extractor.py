@@ -194,8 +194,11 @@ class VisioExtractor:
             Dictionary with x, y coordinates
         """
         try:
-            x = float(shape.cells.get('PinX', {}).get('value', 0))
-            y = float(shape.cells.get('PinY', {}).get('value', 0))
+            # vsdx library returns Cell objects with .value attribute, not dicts
+            pinx_cell = shape.cells.get('PinX')
+            piny_cell = shape.cells.get('PinY')
+            x = float(pinx_cell.value) if pinx_cell and pinx_cell.value else 0.0
+            y = float(piny_cell.value) if piny_cell and piny_cell.value else 0.0
             return {"x": x, "y": y}
         except:
             return {"x": 0.0, "y": 0.0}
@@ -210,8 +213,11 @@ class VisioExtractor:
             Dictionary with width, height
         """
         try:
-            width = float(shape.cells.get('Width', {}).get('value', 1))
-            height = float(shape.cells.get('Height', {}).get('value', 1))
+            # vsdx library returns Cell objects with .value attribute, not dicts
+            width_cell = shape.cells.get('Width')
+            height_cell = shape.cells.get('Height')
+            width = float(width_cell.value) if width_cell and width_cell.value else 1.0
+            height = float(height_cell.value) if height_cell and height_cell.value else 1.0
             return {"width": width, "height": height}
         except:
             return {"width": 1.0, "height": 1.0}
